@@ -3,12 +3,14 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import lattice as lt
 from circle import Circle, CircleArrangement
+import time
 
 
 def test_iterable():
     n_points = 5000
+    sig = [0, 0]
     ptx, pty = [0 for i in range(n_points)], [0 for i in range(n_points)]
-    lat = (x for x in lt.int_seq(2))
+    lat = (x for x in lt.int_seq(2, signs=sig, nonzero=True))
     for i in range(1000):
         v = next(lat)
         ptx.append(v[0])
@@ -24,7 +26,7 @@ def test_iterable():
         global lat, pt
         index = frame_number % n_points
         if index == 0:
-            lat = (x for x in lt.int_seq(2))
+            lat = (x for x in lt.int_seq(2, signs=sig))
             pt = [(0, 0) for i in range(n_points)]
         v = next(lat)
         pt[index] = (v[0], v[1])
@@ -32,6 +34,39 @@ def test_iterable():
 
     animation = FuncAnimation(fig, update, interval=20, save_count=n_points)
     plt.show()
+
+
+def iterable_speed():
+    n_max = 100000
+    n = 0
+    last_time = time.time() 
+    for x in lt.int_seq(3):
+        n += 1
+        cur_time = time.time()
+        if n >= n_max and cur_time - last_time >= 1:
+            print(f"{n / (cur_time - last_time):5f} pts/sec", end="\r")
+            last_time = cur_time
+            n = 0
+
+
+def test_lattice_listing():
+    dimension = 4
+    p = 5
+    A = np.array([[-2, 0, 0, 0],
+                  [0, 2 * p, 0, 0],
+                  [0, 0, -2 * p, 0],
+                  [0, 0, 0, -2 * p]])
+    lat = lt.HLattice(dimension, A)
+    n_max = 100
+    n = 0
+    last_time = time.time() 
+    for x in lat.list_vectors(q=[-2]):
+        n += 1
+        cur_time = time.time()
+        if n >= n_max and cur_time - last_time >= 1:
+            print(f"{n / (cur_time - last_time):5f} vectors/sec", end="\r")
+            last_time = cur_time
+            n = 0
 
 
 def test_circle():
@@ -56,9 +91,11 @@ def test_circle():
 
 
 if __name__ == '__main__':
+    #iterable_speed()
     #test_circle()
     #test_iterable()
-    ca = CircleArrangement()
+    test_lattice_listing()
+    #ca = CircleArrangement()
     #ca.load_xyr("circles.txt")
-    ca.load("out.json")
-    ca.dump("circles.json")
+    #ca.load("out.json")
+    #ca.dump("circles.json")
