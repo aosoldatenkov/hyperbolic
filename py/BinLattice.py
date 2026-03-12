@@ -47,6 +47,14 @@ class BinBasis:
     b: int
     h: int
 
+    def __lt__(self, other: 'BinBasis') -> bool:
+        """Defines the '<' operator for BinBasis objects."""
+        for attr in ('h', 'a', 'b'):
+            diff = abs(getattr(self, attr)) - abs(getattr(other, attr))
+            if diff != 0:
+                return diff < 0
+        return False
+
     def flip(self) -> 'BinBasis':
         return BinBasis(self.e, (-self.f[0], -self.f[1]), self.a, self.b, -self.h)
 
@@ -153,7 +161,7 @@ class BinLattice:
         if bas1.a + bas1.b + 2 * bas1.h == 0:
             river = self.flow(bas1.flip())
             bas2 = river[-1]
-            self.can = bas1.flip() if self.comp_bases(bas1, bas2) < 0 else bas2.flip()
+            self.can = bas1.flip() if bas1 < bas2 else bas2.flip()
             self.river = self.flow(self.can)
             s1, s2 = bas1.sum(), bas2.sum()
             self.zero = [s1, (-s1[0], -s1[1]), s2, (-s2[0], -s2[1])]
@@ -167,10 +175,11 @@ class BinLattice:
             self.neg = [b1_neg.copy() if b1_neg.h < 0 else b1_neg.flip(), 
                         b2_neg.copy() if b2_neg.h < 0 else b2_neg.flip()]
         else:
-            nmin = 0
-            for i in range(len(river)):
-                nmin = i if self.comp_bases(river[i], river[nmin]) < 0 else nmin
-            self.can = river[nmin] if river[nmin].h > 0 else river[nmin].flip()
+            #nmin = 0
+            #for i in range(len(river)):
+            #    nmin = i if self.comp_bases(river[i], river[nmin]) < 0 else nmin
+            nmin = min(range(len(river)), key=river.__getitem__)
+            self.can = river[nmin].copy() if river[nmin].h > 0 else river[nmin].flip()
             self.river = self.flow(self.can)
             river.append(self.flow(river[-1])[1])
             
@@ -197,13 +206,6 @@ class BinLattice:
         if u[0] > 0 or (u[0] == 0 and u[1] > 0):
             return u
         return (-u[0], -u[1])
-
-    def comp_bases(self, x: BinBasis, y: BinBasis) -> int:
-        for attr in ['h', 'a', 'b']:
-            diff = abs(getattr(x, attr)) - abs(getattr(y, attr))
-            if diff != 0:
-                return diff
-        return 0
 
     def is_isomorphic(self, other: 'BinLattice') -> bool:
         if self.signature != other.signature:

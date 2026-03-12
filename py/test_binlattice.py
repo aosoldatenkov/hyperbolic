@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import math
 import unittest
 from BinLattice import BinBasis, BinLattice, int_seq
 
@@ -114,10 +115,17 @@ class TestBinLattice(unittest.TestCase):
 
     def test_lattice_consistency(self):
         """Test the BinLattice class for a large set of inputs"""
-        lattices = []
-        for s in int_seq(3, signs = [0, 0, 1], nonzero = True, length = 10000):
-            lattices.append(BinLattice(s[0], s[1], s[2]))
+        lattices = [BinLattice(a, b, h) for a, b, h in int_seq(3, signs = [0, 0, 1], nonzero = True, length = 10000)]
         self.assertTrue(all(l.is_isomorphic(BinLattice(l.can.a, l.can.b, l.can.h)) for l in lattices))
+
+    def test_values_consistency(self):
+        """Test that BinLattice.list_positive() and BinLattice.list_negative() list all values up to a certain limit."""
+        lat = BinLattice(2, 3, 5)
+        vals1 = list(lat.list_positive(100).keys())
+        vals2 = [lat.sqr(s) for s in int_seq(2, signs=[1, 0], nonzero=True, length=10000) if abs(math.gcd(*s)) == 1]
+        self.assertTrue(all(v in vals1 for v in [v for v in vals2 if 100 >= v > 0]))
+        vals1 = list(lat.list_negative(100).keys())
+        self.assertTrue(all(v in vals1 for v in [v for v in vals2 if -100 <= v < 0]))
 
 if __name__ == '__main__':
     unittest.main()
