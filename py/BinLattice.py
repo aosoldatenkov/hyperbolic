@@ -1,7 +1,7 @@
 import math
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Tuple, List, Optional, Dict, Set, Iterator
+from typing import Tuple, List, Optional, Dict, Set, Iterator, Any
 
 def int_seq(dim: int, signs: Optional[List[int]] = None, nonzero: bool = False, length: int = -1) -> Iterator[List[int]]:
     """Lists all integer sequences of length dim, with given restrictions on signs"""
@@ -41,11 +41,11 @@ def int_seq(dim: int, signs: Optional[List[int]] = None, nonzero: bool = False, 
 
 @dataclass
 class BinBasis:
-    e: Tuple[int, int]
-    f: Tuple[int, int]
-    a: int
-    b: int
-    h: int
+    e: Tuple[Any, Any]
+    f: Tuple[Any, Any]
+    a: Any
+    b: Any
+    h: Any
 
     def __lt__(self, other: 'BinBasis') -> bool:
         """Defines the '<' operator for BinBasis objects."""
@@ -67,28 +67,71 @@ class BinBasis:
     def copy(self) -> 'BinBasis':
         return BinBasis(self.e, self.f, self.a, self.b, self.h)
 
-    def sum(self) -> Tuple[int, int]:
+    def sum(self) -> Tuple[Any, Any]:
         return (self.e[0] + self.f[0], self.e[1] + self.f[1])
 
 
 class BinLattice:
-    def __init__(self, a: int, b: int, h: int):
+    def __init__(self, a: Any, b: Any, h: Any):
         self.a = a
         self.b = b
         self.h = h
         self.disc = a * b - h * h  # Determinant of the form
         
-        self.zero: List[Tuple[int, int]] = []   # List of all primitive vectors representing zero, if any such vectors exist
-        self.river: List[BinBasis] = []         # List of bases with vectors of opposite signs, forming the 'river' of Conway's topograph
-        self.pos: List[BinBasis] = []           # List of bases that generate the positive direction of the topograph
-        self.neg: List[BinBasis] = []           # List of bases that generate the negative direction of the topograph
-        self.shift: Optional[Tuple[int, int, int, int]] = None # An automorphism of the lattice that gives the translation along the 'river', if it exists
-        self.can: Optional[BinBasis] = None     # Canonical basis of the lattice
+        self.zero: List[Tuple[Any, Any]] = []
+        self.river: List[BinBasis] = []
+        self.pos: List[BinBasis] = []
+        self.neg: List[BinBasis] = []
+        self.shift: Optional[Tuple[Any, Any, Any, Any]] = None
+        self.can: Optional[BinBasis] = None
         
         self._initialize_lattice()
 
+    @staticmethod
+    def _is_integer(val: Any) -> bool:
+        """Robustly checks if a generic numeric type represents an integer."""
+        if isinstance(val, int):
+            return True
+        if hasattr(val, 'is_integer'):
+            return val.is_integer()
+        if hasattr(val, 'denominator'):
+            return val.denominator == 1
+        try:
+            return val == int(val)
+        except (TypeError, ValueError):
+            return False
+
+    @staticmethod
+    def _is_even(val: Any) -> bool:
+        """Checks if a generic numeric type is an even integer."""
+        if not BinLattice._is_integer(val):
+            return False
+        try:
+            return val % 2 == 0
+        except TypeError:
+            # Fallback for rational types like fmpq that might not support %
+            return int(val) % 2 == 0
+            
+    @staticmethod
+    def _floor(val: Any) -> int:
+        """Generic floor division for exact rational types and floats."""
+        try:
+            return math.floor(val)
+        except TypeError:
+            if hasattr(val, 'numerator') and hasattr(val, 'denominator'):
+                return int(val.numerator) // int(val.denominator)
+            return int(float(val) // 1)
+        
+    @staticmethod
+    def _residue(x: Any, y: Any) -> Any:
+        """Residue of x mod y"""
+        try:
+            return x % y
+        except TypeError:
+            # Fallback for rational types like fmpq that might not support %
+            return x - y * BinLattice._floor(x / y)
+
     def _initialize_lattice(self) -> None:
-        """Routes initialization based on the discriminant and signature."""
         if self.a == 0 and self.b == 0 and self.h == 0:
             self.signature = (0, 0)
         elif self.disc == 0:
@@ -135,7 +178,7 @@ class BinLattice:
             bas = bas.flip()
             
         if bas.a == 0:
-            r = bas.b % (2 * bas.h)
+            r = self._residue(bas.b, 2 * bas.h)
             t = (r - bas.b) // (2 * bas.h)
             if r == 0:
                 bas.f = (bas.f[0] + t * bas.e[0], bas.f[1] + t * bas.e[1])
@@ -175,9 +218,6 @@ class BinLattice:
             self.neg = [b1_neg.copy() if b1_neg.h < 0 else b1_neg.flip(), 
                         b2_neg.copy() if b2_neg.h < 0 else b2_neg.flip()]
         else:
-            #nmin = 0
-            #for i in range(len(river)):
-            #    nmin = i if self.comp_bases(river[i], river[nmin]) < 0 else nmin
             nmin = min(range(len(river)), key=river.__getitem__)
             self.can = river[nmin].copy() if river[nmin].h > 0 else river[nmin].flip()
             self.river = self.flow(self.can)
@@ -191,7 +231,6 @@ class BinLattice:
             self.shift = (det * (E0 * f1 - F0 * e1), det * (-E0 * f0 + F0 * e0), 
                           det * (E1 * f1 - F1 * e1), det * (-E1 * f0 + F1 * e0))
 
-        # Populate pos and neg from the river
         for r1, r2 in zip(river[:-1], river[1:]):
             if r1.e != r2.e:
                 b = BinBasis(r1.e, r2.e, r1.a, r2.a, self.prod(r1.e, r2.e))
@@ -201,7 +240,7 @@ class BinLattice:
                 self.neg.append(b.copy() if b.h < 0 else b.flip())
 
     @staticmethod
-    def _normalize(u: Tuple[int, int]) -> Tuple[int, int]:
+    def _normalize(u: Tuple[Any, Any]) -> Tuple[Any, Any]:
         """Ensures vectors are canonically oriented."""
         if u[0] > 0 or (u[0] == 0 and u[1] > 0):
             return u
@@ -212,7 +251,7 @@ class BinLattice:
             return False
         return (self.can.a, self.can.b, self.can.h) == (other.can.a, other.can.b, other.can.h)
 
-    def list_positive(self, bound: int) -> Dict[int, Set[Tuple[int, int]]]:
+    def list_positive(self, bound: Any) -> Dict[Any, Set[Tuple[Any, Any]]]:
         p = list(self.pos)
         vals = defaultdict(set)
         
@@ -232,7 +271,7 @@ class BinLattice:
                 p.append(BinBasis(bas.f, s, bas.b, c, self.prod(bas.f, s)))
         return dict(vals)
 
-    def list_negative(self, bound: int) -> Dict[int, Set[Tuple[int, int]]]:
+    def list_negative(self, bound: Any) -> Dict[Any, Set[Tuple[Any, Any]]]:
         p = list(self.neg)
         vals = defaultdict(set)
         
@@ -252,15 +291,20 @@ class BinLattice:
                 p.append(BinBasis(bas.f, s, bas.b, c, self.prod(bas.f, s)))
         return dict(vals)
 
-    def is_root(self, r: Tuple[int, int]) -> bool:
+    def is_root(self, r: Tuple[Any, Any]) -> bool:
+        """Generalized root check without math.gcd or modulo logic."""
         norm_sq = self.sqr(r)
         if norm_sq == 0:
             return False
+        
+        # Calculate projection scalars mathematically
         val1 = 2 * (self.a * r[0] + self.h * r[1])
         val2 = 2 * (self.h * r[0] + self.b * r[1])
-        return (math.gcd(val1, val2) % norm_sq) == 0
+        
+        # Verify both scalars yield an integer when divided by the norm
+        return self._is_integer(val1 / norm_sq) and self._is_integer(val2 / norm_sq)
     
-    def list_roots(self) -> Dict[int, Set[Tuple[int, int]]]:
+    def list_roots(self) -> Dict[Any, Set[Tuple[Any, Any]]]:
         bound = 2 * abs(self.disc)
         p = self.list_positive(bound)
         n = self.list_negative(bound)
@@ -277,7 +321,14 @@ class BinLattice:
         if self.signature == (0, 0):
             return 'Zero lattice'
             
-        parity = 'Even' if self.a % 2 == 0 and self.b % 2 == 0 else 'Odd'
+        # Parity logic is now safely handled using _is_even
+        if self._is_even(self.a) and self._is_even(self.b):
+            parity = 'Even'
+        elif self._is_integer(self.a) and self._is_integer(self.b):
+            parity = 'Odd'
+        else:
+            parity = 'Non-integral'
+            
         lines = [
             f"{parity} lattice of signature {self.signature} and discriminant {self.disc}"
         ]
@@ -295,20 +346,20 @@ class BinLattice:
             
         return '\n'.join(lines) + '\n'
 
-    def min_positive(self) -> Optional[int]:
+    def min_positive(self) -> Optional[Any]:
         v = {self.sqr(x.e) for x in self.pos} | {self.sqr(x.f) for x in self.pos}
         positive_vals = v - {0}
         return min(positive_vals) if positive_vals else None
 
-    def max_negative(self) -> Optional[int]:
+    def max_negative(self) -> Optional[Any]:
         v = {self.sqr(x.e) for x in self.neg} | {self.sqr(x.f) for x in self.neg}
         negative_vals = v - {0}
         return max(negative_vals) if negative_vals else None
 
-    def prod(self, u: Tuple[int, int], v: Tuple[int, int]) -> int:
+    def prod(self, u: Tuple[Any, Any], v: Tuple[Any, Any]) -> Any:
         return self.a * u[0] * v[0] + self.b * u[1] * v[1] + self.h * (u[0] * v[1] + v[0] * u[1])
 
-    def sqr(self, u: Tuple[int, int]) -> int:
+    def sqr(self, u: Tuple[Any, Any]) -> Any:
         return self.prod(u, u)
 
     def descend(self, bas: BinBasis) -> BinBasis:
