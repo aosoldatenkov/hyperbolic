@@ -89,7 +89,7 @@ class BinLattice:
 
     @staticmethod
     def _is_integer(val: Any) -> bool:
-        """Robustly checks if a generic numeric type represents an integer."""
+        """Checks if a generic numeric type represents an integer."""
         if isinstance(val, int):
             return True
         if hasattr(val, 'is_integer'):
@@ -296,14 +296,12 @@ class BinLattice:
         norm_sq = self.sqr(r)
         if norm_sq == 0:
             return False
-        
-        # Calculate projection scalars mathematically
+        # Calculate projection scalars
         val1 = 2 * (self.a * r[0] + self.h * r[1])
         val2 = 2 * (self.h * r[0] + self.b * r[1])
-        
         # Verify both scalars yield an integer when divided by the norm
-        return self._is_integer(val1 / norm_sq) and self._is_integer(val2 / norm_sq)
-    
+        return self._residue(val1, norm_sq) == 0 and self._residue(val2, norm_sq) == 0
+
     def list_roots(self) -> Dict[Any, Set[Tuple[Any, Any]]]:
         bound = 2 * abs(self.disc)
         p = self.list_positive(bound)
@@ -321,7 +319,7 @@ class BinLattice:
         if self.signature == (0, 0):
             return 'Zero lattice'
             
-        # Parity logic is now safely handled using _is_even
+        # Determine parity if applicable
         if self._is_even(self.a) and self._is_even(self.b):
             parity = 'Even'
         elif self._is_integer(self.a) and self._is_integer(self.b):
